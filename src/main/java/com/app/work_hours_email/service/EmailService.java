@@ -2,22 +2,24 @@ package com.app.work_hours_email.service;
 
 
 
+
 import com.app.work_hours_email.model.NotificationRequest;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.Map;
 
 @Service
 public class EmailService {
 
-    @Autowired
-    private JavaMailSender mailSender;
+    @Value("${RESEND_API_KEY}")
+    private String resendApiKey;
+
+    private final RestTemplate restTemplate = new RestTemplate();
 
     public void sendNotification(NotificationRequest request) {
-
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(request.getEmail());
 
         String subject = "";
         String body = "";
@@ -50,16 +52,26 @@ public class EmailService {
                         request.getEarnings()
                 );
                 break;
-
-            default:
-                subject = "Work Notification";
-                body = "Notification received.";
         }
 
-        message.setSubject(subject);
-        message.setText(body);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(resendApiKey);
 
-        mailSender.send(message);
+        Map<String, Object> payload = Map.of(
+                "from", "Work Hours <onboarding@resend.dev>",
+                "to", new String[]{request.getEmail()},
+                "subject", subject,
+                "text", body
+        );
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
+
+        restTemplate.exchange(
+                "https://api.resend.com/emails",
+                HttpMethod.POST,
+                entity,
+                String.class
+        );
     }
 }
-
